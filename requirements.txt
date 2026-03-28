@@ -1,0 +1,30 @@
+psycopg2-binary 
+
+
+# Web framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
+# LangGraph + LangChain
+langgraph>=0.2.0
+langchain-openai>=0.2.0
+langchain-core>=0.3.0
+
+# OpenAI
+openai>=1.50.0
+
+# Database
+asyncpg>=0.29.0
+sqlalchemy[asyncio]>=2.0.0
+
+# Milvus
+pymilvus>=2.4.0
+
+# Settings
+pydantic>=2.8.0
+pydantic-settings>=2.4.0
+
+# Utilities
+python-dotenv>=1.0.0
+tenacity>=9.0.0          # retry logic for LLM + DB calls
+ulid-py>=1.1.0           # sortable unique IDs for sessions/traces
