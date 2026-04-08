@@ -27,4 +27,3 @@ pydantic-settings>=2.4.0
 # Utilities
 python-dotenv>=1.0.0
 tenacity>=9.0.0          # retry logic for LLM + DB calls
-ulid-py>=1.1.0           # sortable unique IDs for sessions/traces

@@ -3,8 +3,12 @@ from __future__ import annotations
 from enum import Enum
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+ENV_PATH = BASE_DIR / ".env"
 
 
 class Environment(str, Enum):
@@ -31,9 +35,27 @@ class MilvusSettings(BaseSettings):
 class PostgresSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="POSTGRES_", extra="ignore")
 
-    dsn: str = Field(
-        default="postgresql+asyncpg://postgres:password@localhost:5432/honebi"
-    )
+    # dsn: str = Field(
+    #     default="postgresql+asyncpg://postgres:password@localhost:5432/honebi"
+    # )
+
+    host: str
+    port: int = 5432
+    db: str
+    user: str
+    password: str
+    statement_timeout_ms: int = 300000
+    @computed_field
+    @property
+    def dsn(self) -> str:
+        return (
+            f"postgresql://{self.user}:"
+            f"{self.password}@"
+            f"{self.host}:"
+            f"{self.port}/"
+            f"{self.db}"
+        )
+
     pool_min_size: int = Field(default=5)
     pool_max_size: int = Field(default=20)
     command_timeout_seconds: int = Field(default=30)
@@ -118,12 +140,19 @@ class Settings(BaseSettings):
     Never instantiate Settings() directly outside this module.
     """
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-        case_sensitive=False,
-    )
+    # model_config = SettingsConfigDict(
+    #     env_file=".env",
+    #     env_file_encoding="utf-8",
+    #     extra="ignore",
+    #     case_sensitive=False,
+    # )
+    class Settings(BaseSettings):
+        model_config = SettingsConfigDict(
+            env_file=ENV_PATH,
+            env_file_encoding="utf-8",
+            extra="ignore",
+            case_sensitive=False,
+        )
 
     environment: Environment = Field(default=Environment.DEVELOPMENT)
     app_name: str = Field(default="honebi-conversational-commerce")
@@ -139,6 +168,26 @@ class Settings(BaseSettings):
     relaxation: RelaxationSettings = Field(default_factory=RelaxationSettings)
     observability: ObservabilitySettings = Field(
         default_factory=ObservabilitySettings
+    )
+
+    business_unit_id: str = Field(
+        default="default_bu",
+        description=(
+            "Business unit identifier for this deployment. "
+            "e.g. 'south_zone', 'online', 'retail_north'. "
+            "Set once in .env for single-BU deployments. "
+            "Sent via X-Business-Unit-ID header for multi-BU."
+        ),
+    )
+
+    entity_id: str = Field(
+        default="default_entity",
+        description=(
+            "Entity identifier within the business unit. "
+            "e.g. 'bangalore_store', 'mumbai_store', 'website'. "
+            "Set once in .env for single-entity deployments. "
+            "Sent via X-Entity-ID header for multi-entity."
+        ),
     )
 
     @field_validator("environment", mode="before")

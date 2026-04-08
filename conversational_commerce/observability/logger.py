@@ -6,10 +6,10 @@ import sys
 import time
 import traceback
 import uuid
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from enum import Enum
-from typing import Any, Generator
+from typing import Any, AsyncGenerator
 
 from config.settings import get_settings
 
@@ -27,6 +27,7 @@ class LogEvent(str, Enum):
     Every log line in this system must use one of these events.
     This makes log querying deterministic — no free-text event matching.
     """
+    DEBUG = "debug"
     # Lifecycle
     APP_STARTUP = "app.startup"
     APP_SHUTDOWN = "app.shutdown"
@@ -62,6 +63,10 @@ class LogEvent(str, Enum):
     RETRIEVAL_RELAXATION_TRIGGERED = "retrieval.relaxation.triggered"
     RETRIEVAL_RELAXATION_ROUND = "retrieval.relaxation.round"
     RETRIEVAL_HYBRID_END = "retrieval.hybrid.end"
+
+    # PSQL enrichment
+    PSQL_QUERY_BUILT = "psql.query_built"
+    PSQL_QUERY_EXECUTED = "psql.query_executed"
 
     # Ranking
     RANKER_START = "ranker.start"
@@ -192,13 +197,13 @@ class HonebiLogger:
     def critical(self, event: LogEvent, message: str, **kwargs: Any) -> None:
         self._log(logging.CRITICAL, event, message, **kwargs)
 
-    @contextmanager
-    def timed(
+    @asynccontextmanager
+    async def timed(
         self,
         event: LogEvent,
         operation: str,
         **kwargs: Any,
-    ) -> Generator[None, None, None]:
+    ) -> AsyncGenerator[None, None, None]:
         """
         Context manager that logs start, end, and elapsed_ms of any operation.
         Emits SLOW_QUERY warning if elapsed exceeds configured threshold.
@@ -213,19 +218,22 @@ class HonebiLogger:
         self.debug(event, f"{operation} started", **kwargs)
         try:
             yield
+        except Exception as e:
+            self.error(event, f"{operation} failed", error=str(e), **kwargs)
+            raise
         finally:
-            elapsed_ms = (time.perf_counter() - start) * 1000
+            elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
             self.info(
                 event,
                 f"{operation} completed",
-                elapsed_ms=round(elapsed_ms, 2),
+                elapsed_ms=elapsed_ms,
                 **kwargs,
             )
             if elapsed_ms > settings.observability.slow_query_threshold_ms:
                 self.warning(
                     LogEvent.SLOW_QUERY,
                     f"{operation} exceeded slow query threshold",
-                    elapsed_ms=round(elapsed_ms, 2),
+                    elapsed_ms=elapsed_ms,
                     threshold_ms=settings.observability.slow_query_threshold_ms,
                     **kwargs,
                 )
